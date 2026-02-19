@@ -24,12 +24,20 @@ namespace MX4HapticService
 		private HapticService _service;
 		private ToolStripMenuItem _statusItem;
 		private ToolStripMenuItem _startStopItem;
+		private VibrationMonitorForm _monitorForm;
 
 		public TrayApplicationContext()
 		{
 			this._service = new HapticService();
 			this._service.StatusChanged += this.OnStatusChanged;
 			this._service.Error += this.OnError;
+
+			// Create monitor form and connect events
+			this._monitorForm = new VibrationMonitorForm();
+			this._service.MotorValuesChanged += (left, right) =>
+				this._monitorForm.UpdateMotors(left, right);
+			this._service.HapticOutputChanged += (waveform, level, interval) =>
+				this._monitorForm.UpdateHapticOutput(waveform, level, interval);
 
 			this.BuildTrayIcon();
 
@@ -50,7 +58,9 @@ namespace MX4HapticService
 			contextMenu.Items.Add(this._statusItem);
 			contextMenu.Items.Add(new ToolStripSeparator());
 			contextMenu.Items.Add(this._startStopItem);
+			contextMenu.Items.Add(new ToolStripMenuItem("Vibration Monitor", null, this.OnShowMonitorClick));
 			contextMenu.Items.Add(new ToolStripMenuItem("Test ViGEm Latency", null, this.OnTestLatencyClick));
+			contextMenu.Items.Add(new ToolStripSeparator());
 			contextMenu.Items.Add(new ToolStripMenuItem("Reload Config", null, this.OnReloadConfigClick));
 			contextMenu.Items.Add(new ToolStripMenuItem("Open Configurator", null, this.OnOpenConfiguratorClick));
 			contextMenu.Items.Add(new ToolStripSeparator());
@@ -130,6 +140,12 @@ namespace MX4HapticService
 			}
 		}
 
+		private void OnShowMonitorClick(Object sender, EventArgs e)
+		{
+			this._monitorForm.Show();
+			this._monitorForm.BringToFront();
+		}
+
 		private void OnTestLatencyClick(Object sender, EventArgs e)
 		{
 			this._service.TestViGEmLatency();
@@ -182,6 +198,7 @@ namespace MX4HapticService
 		{
 			if (disposing)
 			{
+				this._monitorForm?.Dispose();
 				this._service?.Dispose();
 				this._trayIcon?.Dispose();
 			}

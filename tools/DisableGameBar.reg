@@ -1,0 +1,29 @@
+Windows Registry Editor Version 5.00
+
+; Disable Xbox Game Bar completely
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR]
+"AppCaptureEnabled"=dword:00000000
+
+[HKEY_CURRENT_USER\System\GameConfigStore]
+"GameDVR_Enabled"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\GameDVR]
+"AllowGameDVR"=dword:00000000
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\GameBar]
+"UseNexusForGameBarEnabled"=dword:00000000
+"AutoGameModeEnabled"=dword:00000000
+"ShowStartupPanel"=dword:00000000
+"GamePanelStartupTipIndex"=dword:00000003
+
+; Disable Game Bar keyboard shortcuts
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced]
+"GameModeEnabled"=dword:00000000
+
+; Disable ms-gamebar protocol handler
+[HKEY_CLASSES_ROOT\ms-gamebar]
+@=""
+
+[HKEY_CLASSES_ROOT\ms-gamebarservices]
+@=""

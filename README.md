@@ -114,6 +114,11 @@ dotnet build tools/HapticConfigurator
 - Ensure MX4HapticService is running
 - Check Windows sees "Xbox 360 Controller" in devices
 
+**"Get an app to open this ms-gamebar link" popup**
+- Windows tries to open Xbox Game Bar when a virtual Xbox controller is detected
+- **Solution**: Install Xbox Game Bar from Microsoft Store
+- Alternative: Apply registry fix from `tools/DisableGameBar.reg` (run as Administrator)
+
 ## License
 
 MIT

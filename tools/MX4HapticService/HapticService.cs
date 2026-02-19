@@ -44,6 +44,10 @@ namespace MX4HapticService
 		public event Action<String> StatusChanged;
 		public event Action<String> Error;
 
+		// Vibration monitoring
+		public event Action<Byte, Byte> MotorValuesChanged;
+		public event Action<String, Byte, Int32> HapticOutputChanged;
+
 		public Boolean IsRunning => this._running;
 		public Boolean IsMouseConnected => this._hidppDevice?.IsConnected == true;
 		public Boolean IsControllerConnected => this._virtualController != null;
@@ -80,7 +84,7 @@ namespace MX4HapticService
 					this.Error?.Invoke("Failed to create virtual controller. Make sure ViGEmBus is installed.");
 					return false;
 				}
-				this.StatusChanged?.Invoke("Virtual Xbox controller created");
+				this.StatusChanged?.Invoke("Virtual Xbox 360 controller created");
 
 				// Start vibration processing thread
 				this.StartVibrationThread();
@@ -246,6 +250,9 @@ namespace MX4HapticService
 				this._currentLeftMotor = e.LargeMotor;
 				this._currentRightMotor = e.SmallMotor;
 			}
+
+			// Notify monitor
+			this.MotorValuesChanged?.Invoke(e.LargeMotor, e.SmallMotor);
 		}
 
 		/// <summary>
@@ -376,6 +383,9 @@ namespace MX4HapticService
 
 							var waveformId = this.MapWaveformNameToId(waveformName);
 							this._hidppDevice.PlayWaveform(waveformId);
+
+							// Notify monitor
+							this.HapticOutputChanged?.Invoke(waveformName, hapticLevel, intervalMs);
 						}
 
 						// Precise delay
