@@ -242,19 +242,28 @@ namespace MX4HapticService
 			{
 				var exeDir = Path.GetDirectoryName(Application.ExecutablePath);
 
-				// First try: Look for HapticConfigurator.exe in same directory (installed mode)
-				var configuratorExe = Path.Combine(exeDir, "HapticConfigurator.exe");
-				if (File.Exists(configuratorExe))
+				// Try multiple locations for the configurator
+				var possiblePaths = new[]
 				{
-					System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+					Path.Combine(exeDir, "HapticConfigurator.exe"),                    // Same directory
+					Path.Combine(exeDir, "Configurator", "HapticConfigurator.exe"),   // Installer subdirectory
+					Path.Combine(exeDir, "..", "Configurator", "HapticConfigurator.exe"), // Alternative layout
+				};
+
+				foreach (var path in possiblePaths)
+				{
+					if (File.Exists(path))
 					{
-						FileName = configuratorExe,
-						UseShellExecute = true
-					});
-					return;
+						System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+						{
+							FileName = path,
+							UseShellExecute = true
+						});
+						return;
+					}
 				}
 
-				// Second try: Development mode - use dotnet run
+				// Development mode - use dotnet run
 				var projectRoot = Path.GetFullPath(Path.Combine(exeDir, "..", "..", "..", ".."));
 				var configuratorProject = Path.Combine(projectRoot, "HapticConfigurator", "HapticConfigurator.csproj");
 
