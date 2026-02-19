@@ -92,7 +92,8 @@ namespace MX4HapticService
 				// Watch config file for changes
 				this.StartConfigWatcher();
 
-				this.StatusChanged?.Invoke($"Running: {this._config.SimpleWaveform}, {this._config.SimpleIntervalMinMs}ms");
+				var preset = this._config.CurrentPreset;
+				this.StatusChanged?.Invoke($"Running: preset={this._config.ActivePreset}, mode={preset.Mode}, waveform={preset.Waveform}");
 
 				return true;
 			}
@@ -128,7 +129,8 @@ namespace MX4HapticService
 			{
 				this._config = HapticConfig.Load();
 			}
-			this.StatusChanged?.Invoke($"Config reloaded: {this._config.SimpleWaveform}, {this._config.SimpleIntervalMinMs}ms, fixed={this._config.UseFixedInterval}");
+			var preset = this._config.CurrentPreset;
+			this.StatusChanged?.Invoke($"Config reloaded: preset={this._config.ActivePreset}, mode={preset.Mode}");
 		}
 
 		/// <summary>
@@ -352,21 +354,34 @@ namespace MX4HapticService
 
 					if (left > 0 || right > 0)
 					{
-						Byte motorIntensity = Math.Max(left, right);
 						Byte hapticLevel;
 						String waveformName;
 						Int32 intervalMs;
 
 						lock (this._configLock)
 						{
-							if (this._config.EnableSimpleMode)
+							if (this._config.EnablePresetMode)
 							{
+								// New preset mode - uses dual motor simulation
+								var preset = this._config.CurrentPreset;
+								waveformName = preset.Waveform;
+								hapticLevel = preset.CalculateIntensity(left, right);
+								intervalMs = preset.CalculateInterval(left, right);
+							}
+#pragma warning disable CS0618
+							else if (this._config.EnableSimpleMode)
+							{
+								// Legacy simple mode
+								Byte motorIntensity = Math.Max(left, right);
 								waveformName = this._config.SimpleWaveform;
 								hapticLevel = this._config.CalculateSimpleHapticLevel(motorIntensity);
 								intervalMs = this._config.CalculateSimpleInterval(motorIntensity);
 							}
+#pragma warning restore CS0618
 							else
 							{
+								// Legacy PDM mode
+								Byte motorIntensity = Math.Max(left, right);
 								waveformName = this._config.SelectWaveform(motorIntensity);
 								hapticLevel = (Byte)(motorIntensity * 100 / 255);
 								intervalMs = this._config.CalculateDynamicInterval(motorIntensity) / 10;

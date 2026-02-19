@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -20,23 +22,27 @@ namespace HapticConfigurator
 
 		private HapticConfig _config;
 
-		// Simple Mode Controls
-		private RadioButton _rbSimpleMode;
+		// Preset Mode Controls
+		private RadioButton _rbPresetMode;
 		private RadioButton _rbAdvancedMode;
-		private Panel _pnlSimpleMode;
+		private Panel _pnlPresetMode;
 		private Panel _pnlAdvancedMode;
-		private ComboBox _cboSimpleWaveform;
+		private ComboBox _cboPreset;
+		private ComboBox _cboMotorMode;
+		private ComboBox _cboPresetWaveform;
 		private TrackBar _trkIntensityScale;
 		private Label _lblIntensityScaleValue;
 		private TrackBar _trkMinHaptic;
 		private Label _lblMinHapticValue;
 		private TrackBar _trkMaxHaptic;
 		private Label _lblMaxHapticValue;
-		private TrackBar _trkSimpleIntervalMin;
-		private Label _lblSimpleIntervalMinValue;
-		private TrackBar _trkSimpleIntervalMax;
-		private Label _lblSimpleIntervalMaxValue;
-		private CheckBox _chkFixedInterval;
+		private TrackBar _trkPresetIntervalMin;
+		private Label _lblPresetIntervalMinValue;
+		private TrackBar _trkPresetIntervalMax;
+		private Label _lblPresetIntervalMaxValue;
+		private TrackBar _trkThreshold;
+		private Label _lblThresholdValue;
+
 
 		// Waveform Zones DataGridView (Advanced)
 		private DataGridView _gridZones;
@@ -166,25 +172,24 @@ namespace HapticConfigurator
 		private void InitializeComponent()
 		{
 			this.Text = "MX4 Haptic Configurator";
-			this.Size = new Size(600, 610);
+			this.Size = new Size(600, 680);
 			this.FormBorderStyle = FormBorderStyle.FixedSingle;
 			this.MaximizeBox = false;
 			this.StartPosition = FormStartPosition.CenterScreen;
 
 			var y = 15;
-			const Int32 labelX = 20;
 
 			// ===== Mode Selection =====
-			this._rbSimpleMode = new RadioButton
+			this._rbPresetMode = new RadioButton
 			{
-				Text = "Simple Mode (Recommended)",
+				Text = "Preset Mode (Recommended)",
 				Location = new Point(20, y),
 				AutoSize = true,
 				Font = new Font(this.Font.FontFamily, 10, FontStyle.Bold),
 				Checked = true
 			};
-			this._rbSimpleMode.CheckedChanged += (s, e) => this.UpdateModeVisibility();
-			this.Controls.Add(this._rbSimpleMode);
+			this._rbPresetMode.CheckedChanged += (s, e) => this.UpdateModeVisibility();
+			this.Controls.Add(this._rbPresetMode);
 
 			this._rbAdvancedMode = new RadioButton
 			{
@@ -197,29 +202,29 @@ namespace HapticConfigurator
 			this.Controls.Add(this._rbAdvancedMode);
 			y += 30;
 
-			// ===== Simple Mode Panel =====
-			this._pnlSimpleMode = new Panel
+			// ===== Preset Mode Panel =====
+			this._pnlPresetMode = new Panel
 			{
 				Location = new Point(0, y),
-				Size = new Size(600, 310),
+				Size = new Size(600, 380),
 				Visible = true
 			};
-			this.Controls.Add(this._pnlSimpleMode);
+			this.Controls.Add(this._pnlPresetMode);
 
-			this.BuildSimpleModeUI();
+			this.BuildPresetModeUI();
 
 			// ===== Advanced Mode Panel =====
 			this._pnlAdvancedMode = new Panel
 			{
 				Location = new Point(0, y),
-				Size = new Size(600, 310),
+				Size = new Size(600, 380),
 				Visible = false
 			};
 			this.Controls.Add(this._pnlAdvancedMode);
 
 			this.BuildAdvancedModeUI();
 
-			y += 315;
+			y += 385;
 
 			// ===== Connection =====
 			this._btnConnect = new Button
@@ -310,30 +315,106 @@ namespace HapticConfigurator
 			}
 		}
 
-		private void BuildSimpleModeUI()
+		private void BuildPresetModeUI()
 		{
 			var y = 10;
 			const Int32 labelX = 20;
 			const Int32 trackX = 200;
 
-			// Waveform Selection
+			// ===== Preset Selection Row =====
+			var lblPreset = new Label
+			{
+				Text = "Preset:",
+				Location = new Point(labelX, y + 3),
+				AutoSize = true,
+				Font = new Font(this.Font.FontFamily, 9, FontStyle.Bold)
+			};
+			this._pnlPresetMode.Controls.Add(lblPreset);
+
+			this._cboPreset = new ComboBox
+			{
+				Location = new Point(trackX, y),
+				Size = new Size(150, 25),
+				DropDownStyle = ComboBoxStyle.DropDownList
+			};
+			this._cboPreset.SelectedIndexChanged += this.CboPreset_SelectedIndexChanged;
+			this._pnlPresetMode.Controls.Add(this._cboPreset);
+
+			var btnSavePreset = new Button
+			{
+				Text = "Save",
+				Location = new Point(360, y),
+				Size = new Size(50, 25)
+			};
+			btnSavePreset.Click += this.BtnSavePreset_Click;
+			this._pnlPresetMode.Controls.Add(btnSavePreset);
+
+			var btnDeletePreset = new Button
+			{
+				Text = "Del",
+				Location = new Point(415, y),
+				Size = new Size(40, 25)
+			};
+			btnDeletePreset.Click += this.BtnDeletePreset_Click;
+			this._pnlPresetMode.Controls.Add(btnDeletePreset);
+
+			var btnExport = new Button
+			{
+				Text = "Export",
+				Location = new Point(460, y),
+				Size = new Size(55, 25)
+			};
+			btnExport.Click += this.BtnExportPreset_Click;
+			this._pnlPresetMode.Controls.Add(btnExport);
+
+			var btnImport = new Button
+			{
+				Text = "Import",
+				Location = new Point(520, y),
+				Size = new Size(55, 25)
+			};
+			btnImport.Click += this.BtnImportPreset_Click;
+			this._pnlPresetMode.Controls.Add(btnImport);
+			y += 35;
+
+			// ===== Motor Mode =====
+			var lblMotorMode = new Label
+			{
+				Text = "Motor Mode:",
+				Location = new Point(labelX, y + 3),
+				AutoSize = true
+			};
+			this._pnlPresetMode.Controls.Add(lblMotorMode);
+
+			this._cboMotorMode = new ComboBox
+			{
+				Location = new Point(trackX, y),
+				Size = new Size(150, 25),
+				DropDownStyle = ComboBoxStyle.DropDownList
+			};
+			this._cboMotorMode.Items.AddRange(new Object[] { "DualMotor", "LeftOnly", "RightOnly", "Combined" });
+			this._cboMotorMode.SelectedIndex = 0;
+			this._pnlPresetMode.Controls.Add(this._cboMotorMode);
+			y += 35;
+
+			// ===== Waveform Selection =====
 			var lblWaveform = new Label
 			{
 				Text = "Waveform:",
 				Location = new Point(labelX, y + 3),
 				AutoSize = true
 			};
-			this._pnlSimpleMode.Controls.Add(lblWaveform);
+			this._pnlPresetMode.Controls.Add(lblWaveform);
 
-			this._cboSimpleWaveform = new ComboBox
+			this._cboPresetWaveform = new ComboBox
 			{
 				Location = new Point(trackX, y),
 				Size = new Size(150, 25),
 				DropDownStyle = ComboBoxStyle.DropDownList
 			};
-			this._cboSimpleWaveform.Items.AddRange(HapticConfig.AvailableWaveforms);
-			this._cboSimpleWaveform.SelectedItem = "wave";
-			this._pnlSimpleMode.Controls.Add(this._cboSimpleWaveform);
+			this._cboPresetWaveform.Items.AddRange(HapticConfig.AvailableWaveforms);
+			this._cboPresetWaveform.SelectedItem = "knock";
+			this._pnlPresetMode.Controls.Add(this._cboPresetWaveform);
 
 			var btnTestWave = new Button
 			{
@@ -348,22 +429,22 @@ namespace HapticConfigurator
 					this.SetStatus("Connect to mouse first!", Color.Red);
 					return;
 				}
-				var waveform = this._cboSimpleWaveform.SelectedItem?.ToString() ?? "wave";
+				var waveform = this._cboPresetWaveform.SelectedItem?.ToString() ?? "knock";
 				this._device.SetHapticLevel(75);
 				this._device.PlayWaveform(this.MapWaveformNameToId(waveform));
 				this.SetStatus($"Played: {waveform} at 75%", Color.Green);
 			};
-			this._pnlSimpleMode.Controls.Add(btnTestWave);
+			this._pnlPresetMode.Controls.Add(btnTestWave);
 			y += 35;
 
-			// Intensity Scale
+			// ===== Intensity Scale =====
 			var lblIntScale = new Label
 			{
 				Text = "Intensity Scale:",
 				Location = new Point(labelX, y + 3),
 				AutoSize = true
 			};
-			this._pnlSimpleMode.Controls.Add(lblIntScale);
+			this._pnlPresetMode.Controls.Add(lblIntScale);
 
 			this._trkIntensityScale = new TrackBar
 			{
@@ -376,7 +457,7 @@ namespace HapticConfigurator
 			};
 			this._trkIntensityScale.ValueChanged += (s, e) =>
 				this._lblIntensityScaleValue.Text = $"{this._trkIntensityScale.Value / 100.0:F2}x";
-			this._pnlSimpleMode.Controls.Add(this._trkIntensityScale);
+			this._pnlPresetMode.Controls.Add(this._trkIntensityScale);
 
 			this._lblIntensityScaleValue = new Label
 			{
@@ -384,17 +465,17 @@ namespace HapticConfigurator
 				Location = new Point(410, y + 10),
 				Size = new Size(60, 20)
 			};
-			this._pnlSimpleMode.Controls.Add(this._lblIntensityScaleValue);
+			this._pnlPresetMode.Controls.Add(this._lblIntensityScaleValue);
 			y += 45;
 
-			// Min Haptic Level
+			// ===== Min Haptic Level =====
 			var lblMinHaptic = new Label
 			{
-				Text = "Min Level (at low intensity):",
+				Text = "Min Level (at low motor):",
 				Location = new Point(labelX, y + 3),
 				AutoSize = true
 			};
-			this._pnlSimpleMode.Controls.Add(lblMinHaptic);
+			this._pnlPresetMode.Controls.Add(lblMinHaptic);
 
 			this._trkMinHaptic = new TrackBar
 			{
@@ -407,7 +488,7 @@ namespace HapticConfigurator
 			};
 			this._trkMinHaptic.ValueChanged += (s, e) =>
 				this._lblMinHapticValue.Text = $"{this._trkMinHaptic.Value}%";
-			this._pnlSimpleMode.Controls.Add(this._trkMinHaptic);
+			this._pnlPresetMode.Controls.Add(this._trkMinHaptic);
 
 			this._lblMinHapticValue = new Label
 			{
@@ -415,17 +496,17 @@ namespace HapticConfigurator
 				Location = new Point(410, y + 10),
 				Size = new Size(60, 20)
 			};
-			this._pnlSimpleMode.Controls.Add(this._lblMinHapticValue);
+			this._pnlPresetMode.Controls.Add(this._lblMinHapticValue);
 			y += 45;
 
-			// Max Haptic Level
+			// ===== Max Haptic Level =====
 			var lblMaxHaptic = new Label
 			{
-				Text = "Max Level (at high intensity):",
+				Text = "Max Level (at high motor):",
 				Location = new Point(labelX, y + 3),
 				AutoSize = true
 			};
-			this._pnlSimpleMode.Controls.Add(lblMaxHaptic);
+			this._pnlPresetMode.Controls.Add(lblMaxHaptic);
 
 			this._trkMaxHaptic = new TrackBar
 			{
@@ -438,7 +519,7 @@ namespace HapticConfigurator
 			};
 			this._trkMaxHaptic.ValueChanged += (s, e) =>
 				this._lblMaxHapticValue.Text = $"{this._trkMaxHaptic.Value}%";
-			this._pnlSimpleMode.Controls.Add(this._trkMaxHaptic);
+			this._pnlPresetMode.Controls.Add(this._trkMaxHaptic);
 
 			this._lblMaxHapticValue = new Label
 			{
@@ -446,86 +527,289 @@ namespace HapticConfigurator
 				Location = new Point(410, y + 10),
 				Size = new Size(60, 20)
 			};
-			this._pnlSimpleMode.Controls.Add(this._lblMaxHapticValue);
+			this._pnlPresetMode.Controls.Add(this._lblMaxHapticValue);
 			y += 45;
 
-			// Fixed Interval checkbox
-			this._chkFixedInterval = new CheckBox
+			// ===== Threshold =====
+			var lblThreshold = new Label
 			{
-				Text = "Fixed Interval",
+				Text = "Threshold (ignore below):",
 				Location = new Point(labelX, y + 3),
 				AutoSize = true
 			};
-			this._chkFixedInterval.CheckedChanged += (s, e) => this.UpdateIntervalControlsState();
-			this._pnlSimpleMode.Controls.Add(this._chkFixedInterval);
-			y += 30;
+			this._pnlPresetMode.Controls.Add(lblThreshold);
 
-			// Pulse Frequency Min (fast pulses at high intensity / or fixed interval)
+			this._trkThreshold = new TrackBar
+			{
+				Location = new Point(trackX, y),
+				Size = new Size(200, 45),
+				Minimum = 0,
+				Maximum = 100,
+				Value = 10,
+				TickFrequency = 10
+			};
+			this._trkThreshold.ValueChanged += (s, e) =>
+				this._lblThresholdValue.Text = $"{this._trkThreshold.Value}";
+			this._pnlPresetMode.Controls.Add(this._trkThreshold);
+
+			this._lblThresholdValue = new Label
+			{
+				Text = "10",
+				Location = new Point(410, y + 10),
+				Size = new Size(60, 20)
+			};
+			this._pnlPresetMode.Controls.Add(this._lblThresholdValue);
+			y += 45;
+
+			// ===== Min Interval (fast pulses) =====
 			var lblIntervalMin = new Label
 			{
-				Text = "Min Interval (fast, at high):",
+				Text = "Min Interval (fast):",
 				Location = new Point(labelX, y + 3),
 				AutoSize = true
 			};
-			this._pnlSimpleMode.Controls.Add(lblIntervalMin);
+			this._pnlPresetMode.Controls.Add(lblIntervalMin);
 
-			this._trkSimpleIntervalMin = new TrackBar
+			this._trkPresetIntervalMin = new TrackBar
 			{
 				Location = new Point(trackX, y),
 				Size = new Size(200, 45),
 				Minimum = 1,
-				Maximum = 500,
-				Value = 15,
-				TickFrequency = 50
+				Maximum = 200,
+				Value = 5,
+				TickFrequency = 20
 			};
-			this._trkSimpleIntervalMin.ValueChanged += (s, e) =>
-				this._lblSimpleIntervalMinValue.Text = $"{this._trkSimpleIntervalMin.Value} ms";
-			this._pnlSimpleMode.Controls.Add(this._trkSimpleIntervalMin);
+			this._trkPresetIntervalMin.ValueChanged += (s, e) =>
+				this._lblPresetIntervalMinValue.Text = $"{this._trkPresetIntervalMin.Value} ms";
+			this._pnlPresetMode.Controls.Add(this._trkPresetIntervalMin);
 
-			this._lblSimpleIntervalMinValue = new Label
+			this._lblPresetIntervalMinValue = new Label
 			{
-				Text = "15 ms",
+				Text = "5 ms",
 				Location = new Point(410, y + 10),
 				Size = new Size(60, 20)
 			};
-			this._pnlSimpleMode.Controls.Add(this._lblSimpleIntervalMinValue);
+			this._pnlPresetMode.Controls.Add(this._lblPresetIntervalMinValue);
 			y += 45;
 
-			// Pulse Frequency Max (slow pulses at low intensity)
+			// ===== Max Interval (slow pulses) =====
 			var lblIntervalMax = new Label
 			{
-				Text = "Max Interval (slow, at low):",
+				Text = "Max Interval (slow):",
 				Location = new Point(labelX, y + 3),
 				AutoSize = true
 			};
-			this._pnlSimpleMode.Controls.Add(lblIntervalMax);
+			this._pnlPresetMode.Controls.Add(lblIntervalMax);
 
-			this._trkSimpleIntervalMax = new TrackBar
+			this._trkPresetIntervalMax = new TrackBar
 			{
 				Location = new Point(trackX, y),
 				Size = new Size(200, 45),
 				Minimum = 1,
 				Maximum = 500,
-				Value = 150,
+				Value = 80,
 				TickFrequency = 50
 			};
-			this._trkSimpleIntervalMax.ValueChanged += (s, e) =>
-				this._lblSimpleIntervalMaxValue.Text = $"{this._trkSimpleIntervalMax.Value} ms";
-			this._pnlSimpleMode.Controls.Add(this._trkSimpleIntervalMax);
+			this._trkPresetIntervalMax.ValueChanged += (s, e) =>
+				this._lblPresetIntervalMaxValue.Text = $"{this._trkPresetIntervalMax.Value} ms";
+			this._pnlPresetMode.Controls.Add(this._trkPresetIntervalMax);
 
-			this._lblSimpleIntervalMaxValue = new Label
+			this._lblPresetIntervalMaxValue = new Label
 			{
-				Text = "150 ms",
+				Text = "80 ms",
 				Location = new Point(410, y + 10),
 				Size = new Size(60, 20)
 			};
-			this._pnlSimpleMode.Controls.Add(this._lblSimpleIntervalMaxValue);
+			this._pnlPresetMode.Controls.Add(this._lblPresetIntervalMaxValue);
 		}
+
+		#region Preset Event Handlers
+
+		private void CboPreset_SelectedIndexChanged(Object? sender, EventArgs e)
+		{
+			if (this._cboPreset.SelectedItem == null) return;
+
+			var presetKey = this._cboPreset.SelectedItem.ToString();
+			if (String.IsNullOrEmpty(presetKey)) return;
+
+			// Load preset values to UI
+			if (this._config.Presets.TryGetValue(presetKey, out var preset))
+			{
+				this.LoadPresetToUI(preset);
+				this._config.ActivePreset = presetKey;
+				this.SetStatus($"Loaded preset: {preset.Name}", Accent);
+			}
+		}
+
+		private void LoadPresetToUI(HapticPreset preset)
+		{
+			// Motor Mode
+			var modeIndex = (Int32)preset.Mode;
+			if (modeIndex >= 0 && modeIndex < this._cboMotorMode.Items.Count)
+				this._cboMotorMode.SelectedIndex = modeIndex;
+
+			// Waveform
+			var waveformIndex = Array.IndexOf(HapticConfig.AvailableWaveforms, preset.Waveform);
+			if (waveformIndex >= 0) this._cboPresetWaveform.SelectedIndex = waveformIndex;
+			else this._cboPresetWaveform.SelectedIndex = 0;
+
+			// Sliders
+			this._trkIntensityScale.Value = Math.Clamp((Int32)(preset.IntensityScale * 100), 50, 200);
+			this._trkMinHaptic.Value = Math.Clamp(preset.MinHapticLevel, 0, 100);
+			this._trkMaxHaptic.Value = Math.Clamp(preset.MaxHapticLevel, 0, 100);
+			this._trkThreshold.Value = Math.Clamp(preset.Threshold, 0, 100);
+			this._trkPresetIntervalMin.Value = Math.Clamp(preset.IntervalMinMs, 1, 200);
+			this._trkPresetIntervalMax.Value = Math.Clamp(preset.IntervalMaxMs, 1, 500);
+
+			// Update labels
+			this._lblIntensityScaleValue.Text = $"{this._trkIntensityScale.Value / 100.0:F2}x";
+			this._lblMinHapticValue.Text = $"{this._trkMinHaptic.Value}%";
+			this._lblMaxHapticValue.Text = $"{this._trkMaxHaptic.Value}%";
+			this._lblThresholdValue.Text = $"{this._trkThreshold.Value}";
+			this._lblPresetIntervalMinValue.Text = $"{this._trkPresetIntervalMin.Value} ms";
+			this._lblPresetIntervalMaxValue.Text = $"{this._trkPresetIntervalMax.Value} ms";
+		}
+
+		private HapticPreset GetPresetFromUI()
+		{
+			return new HapticPreset
+			{
+				Name = this._cboPreset.SelectedItem?.ToString() ?? "Custom",
+				Mode = (MotorMode)this._cboMotorMode.SelectedIndex,
+				Waveform = this._cboPresetWaveform.SelectedItem?.ToString() ?? "knock",
+				IntensityScale = this._trkIntensityScale.Value / 100.0,
+				MinHapticLevel = this._trkMinHaptic.Value,
+				MaxHapticLevel = this._trkMaxHaptic.Value,
+				Threshold = this._trkThreshold.Value,
+				IntervalMinMs = this._trkPresetIntervalMin.Value,
+				IntervalMaxMs = this._trkPresetIntervalMax.Value
+			};
+		}
+
+		private void BtnSavePreset_Click(Object? sender, EventArgs e)
+		{
+			using (var dialog = new InputDialog("Save Preset", "Enter preset name:", this._cboPreset.SelectedItem?.ToString() ?? "Custom"))
+			{
+				if (dialog.ShowDialog(this) == DialogResult.OK && !String.IsNullOrWhiteSpace(dialog.InputText))
+				{
+					var presetKey = dialog.InputText.Trim().ToLowerInvariant().Replace(" ", "_");
+					var preset = this.GetPresetFromUI();
+					preset.Name = dialog.InputText.Trim();
+
+					this._config.Presets[presetKey] = preset;
+					this._config.ActivePreset = presetKey;
+					this._config.Save();
+
+					this.RefreshPresetComboBox();
+					this._cboPreset.SelectedItem = presetKey;
+
+					this.SetStatus($"Preset '{preset.Name}' saved", Color.Green);
+				}
+			}
+		}
+
+		private void BtnDeletePreset_Click(Object? sender, EventArgs e)
+		{
+			var presetKey = this._cboPreset.SelectedItem?.ToString();
+			if (String.IsNullOrEmpty(presetKey)) return;
+
+			// Don't allow deleting built-in presets
+			if (HapticConfig.DefaultPresets.ContainsKey(presetKey))
+			{
+				this.SetStatus("Cannot delete built-in preset", Color.Orange);
+				return;
+			}
+
+			if (MessageBox.Show($"Delete preset '{presetKey}'?", "Confirm Delete",
+				MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+			{
+				this._config.Presets.Remove(presetKey);
+				this._config.ActivePreset = "default";
+				this._config.Save();
+
+				this.RefreshPresetComboBox();
+				this._cboPreset.SelectedItem = "default";
+
+				this.SetStatus($"Preset '{presetKey}' deleted", Color.Green);
+			}
+		}
+
+		private void BtnExportPreset_Click(Object? sender, EventArgs e)
+		{
+			var preset = this.GetPresetFromUI();
+
+			using (var dialog = new SaveFileDialog())
+			{
+				dialog.Filter = "JSON files (*.json)|*.json";
+				dialog.FileName = $"{preset.Name.Replace(" ", "_")}.json";
+				dialog.Title = "Export Preset";
+
+				if (dialog.ShowDialog() == DialogResult.OK)
+				{
+					try
+					{
+						var options = new JsonSerializerOptions { WriteIndented = true };
+						var json = JsonSerializer.Serialize(preset, options);
+						File.WriteAllText(dialog.FileName, json);
+						this.SetStatus($"Exported to {Path.GetFileName(dialog.FileName)}", Color.Green);
+					}
+					catch (Exception ex)
+					{
+						this.SetStatus($"Export failed: {ex.Message}", Color.Red);
+					}
+				}
+			}
+		}
+
+		private void BtnImportPreset_Click(Object? sender, EventArgs e)
+		{
+			using (var dialog = new OpenFileDialog())
+			{
+				dialog.Filter = "JSON files (*.json)|*.json";
+				dialog.Title = "Import Preset";
+
+				if (dialog.ShowDialog() == DialogResult.OK)
+				{
+					try
+					{
+						var json = File.ReadAllText(dialog.FileName);
+						var preset = JsonSerializer.Deserialize<HapticPreset>(json);
+
+						if (preset != null)
+						{
+							var presetKey = preset.Name.ToLowerInvariant().Replace(" ", "_");
+							this._config.Presets[presetKey] = preset;
+							this._config.ActivePreset = presetKey;
+							this._config.Save();
+
+							this.RefreshPresetComboBox();
+							this._cboPreset.SelectedItem = presetKey;
+
+							this.SetStatus($"Imported preset: {preset.Name}", Color.Green);
+						}
+					}
+					catch (Exception ex)
+					{
+						this.SetStatus($"Import failed: {ex.Message}", Color.Red);
+					}
+				}
+			}
+		}
+
+		private void RefreshPresetComboBox()
+		{
+			this._cboPreset.Items.Clear();
+			foreach (var key in this._config.Presets.Keys.OrderBy(k => k))
+			{
+				this._cboPreset.Items.Add(key);
+			}
+		}
+
+		#endregion
 
 		private void UpdateIntervalControlsState()
 		{
-			var isFixed = this._chkFixedInterval.Checked;
-			this._trkSimpleIntervalMax.Enabled = !isFixed;
+			// Legacy - no longer needed for preset mode
 		}
 
 		private void BuildAdvancedModeUI()
@@ -630,9 +914,9 @@ namespace HapticConfigurator
 
 		private void UpdateModeVisibility()
 		{
-			var isSimple = this._rbSimpleMode.Checked;
-			this._pnlSimpleMode.Visible = isSimple;
-			this._pnlAdvancedMode.Visible = !isSimple;
+			var isPresetMode = this._rbPresetMode.Checked;
+			this._pnlPresetMode.Visible = isPresetMode;
+			this._pnlAdvancedMode.Visible = !isPresetMode;
 		}
 
 		private Label AddLabel(String text, Int32 x, Int32 y)
@@ -892,28 +1176,26 @@ namespace HapticConfigurator
 
 		private void LoadConfigToUI()
 		{
-			// Simple Mode
-			this._rbSimpleMode.Checked = this._config.EnableSimpleMode;
-			this._rbAdvancedMode.Checked = !this._config.EnableSimpleMode;
+			// Preset Mode
+			this._rbPresetMode.Checked = this._config.EnablePresetMode;
+			this._rbAdvancedMode.Checked = !this._config.EnablePresetMode;
 
-			// Simple mode controls
-			var waveformIndex = Array.IndexOf(HapticConfig.AvailableWaveforms, this._config.SimpleWaveform);
-			if (waveformIndex >= 0) this._cboSimpleWaveform.SelectedIndex = waveformIndex;
-			else this._cboSimpleWaveform.SelectedIndex = 0;
+			// Populate preset combo box
+			this.RefreshPresetComboBox();
 
-			this._trkIntensityScale.Value = Math.Clamp((Int32)(this._config.IntensityScale * 100), 50, 200);
-			this._trkMinHaptic.Value = Math.Clamp(this._config.MinHapticLevel, 0, 100);
-			this._trkMaxHaptic.Value = Math.Clamp(this._config.MaxHapticLevel, 0, 100);
-			this._chkFixedInterval.Checked = this._config.UseFixedInterval;
-			this._trkSimpleIntervalMin.Value = Math.Clamp(this._config.SimpleIntervalMinMs, 1, 500);
-			this._trkSimpleIntervalMax.Value = Math.Clamp(this._config.SimpleIntervalMaxMs, 1, 500);
+			// Select active preset
+			if (this._config.Presets.ContainsKey(this._config.ActivePreset))
+			{
+				this._cboPreset.SelectedItem = this._config.ActivePreset;
+			}
+			else if (this._cboPreset.Items.Count > 0)
+			{
+				this._cboPreset.SelectedIndex = 0;
+			}
 
-			// Update labels
-			this._lblIntensityScaleValue.Text = $"{this._trkIntensityScale.Value / 100.0:F2}x";
-			this._lblMinHapticValue.Text = $"{this._trkMinHaptic.Value}%";
-			this._lblMaxHapticValue.Text = $"{this._trkMaxHaptic.Value}%";
-			this._lblSimpleIntervalMinValue.Text = $"{this._trkSimpleIntervalMin.Value} ms";
-			this._lblSimpleIntervalMaxValue.Text = $"{this._trkSimpleIntervalMax.Value} ms";
+			// Load current preset values to UI
+			var preset = this._config.CurrentPreset;
+			this.LoadPresetToUI(preset);
 
 			// Advanced mode controls
 			this.PopulateZonesGrid();
@@ -923,20 +1205,22 @@ namespace HapticConfigurator
 
 			this.UpdateModeVisibility();
 			this.UpdatePdmControlsState();
-			this.UpdateIntervalControlsState();
 		}
 
 		private void SaveUIToConfig()
 		{
-			// Simple Mode settings
-			this._config.EnableSimpleMode = this._rbSimpleMode.Checked;
-			this._config.SimpleWaveform = this._cboSimpleWaveform.SelectedItem?.ToString() ?? "wave";
-			this._config.IntensityScale = this._trkIntensityScale.Value / 100.0;
-			this._config.MinHapticLevel = this._trkMinHaptic.Value;
-			this._config.MaxHapticLevel = this._trkMaxHaptic.Value;
-			this._config.UseFixedInterval = this._chkFixedInterval.Checked;
-			this._config.SimpleIntervalMinMs = this._trkSimpleIntervalMin.Value;
-			this._config.SimpleIntervalMaxMs = this._trkSimpleIntervalMax.Value;
+			// Preset Mode settings
+			this._config.EnablePresetMode = this._rbPresetMode.Checked;
+
+			// Update current preset with UI values
+			var presetKey = this._cboPreset.SelectedItem?.ToString();
+			if (!String.IsNullOrEmpty(presetKey) && this._config.Presets.ContainsKey(presetKey))
+			{
+				var preset = this.GetPresetFromUI();
+				preset.Name = this._config.Presets[presetKey].Name; // Keep original name
+				this._config.Presets[presetKey] = preset;
+				this._config.ActivePreset = presetKey;
+			}
 
 			// Advanced Mode settings
 			this._config.WaveformZones.Clear();
@@ -1012,11 +1296,12 @@ namespace HapticConfigurator
 					Int32 intervalMs;
 					Byte hapticLevel;
 
-					if (this._config.EnableSimpleMode)
+					if (this._config.EnablePresetMode)
 					{
-						waveform = this._config.SimpleWaveform;
-						hapticLevel = this._config.CalculateSimpleHapticLevel(intensity);
-						intervalMs = this._config.CalculateSimpleInterval(intensity);
+						var preset = this._config.CurrentPreset;
+						waveform = preset.Waveform;
+						hapticLevel = preset.CalculateIntensity(intensity, intensity);
+						intervalMs = preset.CalculateInterval(intensity, intensity);
 					}
 					else
 					{
@@ -1052,7 +1337,7 @@ namespace HapticConfigurator
 				this._testAllRunning = false;
 				this.Invoke(() =>
 				{
-					var mode = this._config.EnableSimpleMode ? "Simple" : "PDM";
+					var mode = this._config.EnablePresetMode ? "Preset" : "PDM";
 					this.SetStatus($"{mode} mode sweep completed (1→255)", Color.Green);
 				});
 			})

@@ -3,9 +3,150 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace MX4HapticService
 {
+	/// <summary>
+	/// Motor interpretation mode for translating Xbox controller motors to haptic output.
+	/// </summary>
+	[JsonConverter(typeof(JsonStringEnumConverter))]
+	public enum MotorMode
+	{
+		/// <summary>
+		/// Dual motor simulation: intensity from max(L,R), interval from motor balance.
+		/// Left motor = low frequency (longer intervals), Right motor = high frequency (shorter intervals).
+		/// </summary>
+		DualMotor,
+
+		/// <summary>
+		/// Left motor only: intensity and interval from left motor value.
+		/// Best for: racing games (engine rumble).
+		/// </summary>
+		LeftOnly,
+
+		/// <summary>
+		/// Right motor only: intensity and interval from right motor value.
+		/// Best for: shooters (gunfire, impacts).
+		/// </summary>
+		RightOnly,
+
+		/// <summary>
+		/// Combined: intensity from average of both motors, fixed interval.
+		/// Best for: simple games with basic rumble.
+		/// </summary>
+		Combined
+	}
+
+	/// <summary>
+	/// Haptic preset for specific game types.
+	/// </summary>
+	public class HapticPreset
+	{
+		/// <summary>
+		/// Display name for the preset.
+		/// </summary>
+		public String Name { get; set; } = "Default";
+
+		/// <summary>
+		/// Waveform to use (knock, wave, etc.).
+		/// </summary>
+		public String Waveform { get; set; } = "knock";
+
+		/// <summary>
+		/// Motor interpretation mode.
+		/// </summary>
+		public MotorMode Mode { get; set; } = MotorMode.DualMotor;
+
+		/// <summary>
+		/// Intensity scaling factor (0.5-2.0).
+		/// </summary>
+		public Double IntensityScale { get; set; } = 1.0;
+
+		/// <summary>
+		/// Minimum haptic level output (0-100).
+		/// </summary>
+		public Int32 MinHapticLevel { get; set; } = 10;
+
+		/// <summary>
+		/// Maximum haptic level output (0-100).
+		/// </summary>
+		public Int32 MaxHapticLevel { get; set; } = 100;
+
+		/// <summary>
+		/// Minimum pulse interval in ms (at max intensity / high frequency).
+		/// </summary>
+		public Int32 IntervalMinMs { get; set; } = 5;
+
+		/// <summary>
+		/// Maximum pulse interval in ms (at min intensity / low frequency).
+		/// </summary>
+		public Int32 IntervalMaxMs { get; set; } = 80;
+
+		/// <summary>
+		/// Motor value threshold - ignore values below this (0-255).
+		/// </summary>
+		public Int32 Threshold { get; set; } = 10;
+
+		/// <summary>
+		/// Calculates haptic intensity (0-100) from motor values.
+		/// </summary>
+		public Byte CalculateIntensity(Byte leftMotor, Byte rightMotor)
+		{
+			Int32 rawValue = this.Mode switch
+			{
+				MotorMode.DualMotor => Math.Max(leftMotor, rightMotor),
+				MotorMode.LeftOnly => leftMotor,
+				MotorMode.RightOnly => rightMotor,
+				MotorMode.Combined => (leftMotor + rightMotor) / 2,
+				_ => Math.Max(leftMotor, rightMotor)
+			};
+
+			if (rawValue < this.Threshold) return 0;
+
+			var normalized = rawValue / 255.0 * this.IntensityScale;
+			var level = this.MinHapticLevel + (this.MaxHapticLevel - this.MinHapticLevel) * normalized;
+			return (Byte)Math.Clamp((Int32)level, 0, 100);
+		}
+
+		/// <summary>
+		/// Calculates pulse interval in ms from motor values.
+		/// </summary>
+		public Int32 CalculateInterval(Byte leftMotor, Byte rightMotor)
+		{
+			Int32 totalMotor = leftMotor + rightMotor;
+			if (totalMotor < this.Threshold) return this.IntervalMaxMs;
+
+			switch (this.Mode)
+			{
+				case MotorMode.DualMotor:
+					// Right motor = high freq (short interval), Left motor = low freq (long interval)
+					// rightRatio: 0 = all left (rumble), 1 = all right (buzz)
+					var rightRatio = rightMotor / (Double)totalMotor;
+					var interval = this.IntervalMaxMs - (this.IntervalMaxMs - this.IntervalMinMs) * rightRatio;
+					return Math.Clamp((Int32)interval, this.IntervalMinMs, this.IntervalMaxMs);
+
+				case MotorMode.LeftOnly:
+					// Higher left value = more intense = shorter interval
+					var leftNorm = leftMotor / 255.0;
+					return (Int32)(this.IntervalMaxMs - (this.IntervalMaxMs - this.IntervalMinMs) * leftNorm);
+
+				case MotorMode.RightOnly:
+					// Higher right value = more intense = shorter interval
+					var rightNorm = rightMotor / 255.0;
+					return (Int32)(this.IntervalMaxMs - (this.IntervalMaxMs - this.IntervalMinMs) * rightNorm);
+
+				case MotorMode.Combined:
+					// Average of both motors determines interval
+					var avgNorm = (leftMotor + rightMotor) / 510.0;
+					return (Int32)(this.IntervalMaxMs - (this.IntervalMaxMs - this.IntervalMinMs) * avgNorm);
+
+				default:
+					return this.IntervalMinMs;
+			}
+		}
+	}
+
 	/// <summary>
 	/// A point on the interval curve. Position and Value are normalized (0.0 to 1.0).
 	/// </summary>
@@ -111,12 +252,113 @@ namespace MX4HapticService
 
 		#endregion
 
-		#region Simple Mode (Direct HID++ Intensity)
+		#region Preset Mode
+
+		/// <summary>
+		/// Enable preset mode (recommended). Uses presets for motor-to-haptic translation.
+		/// </summary>
+		public Boolean EnablePresetMode { get; set; } = true;
+
+		/// <summary>
+		/// Active preset name.
+		/// </summary>
+		public String ActivePreset { get; set; } = "default";
+
+		/// <summary>
+		/// Available presets.
+		/// </summary>
+		public Dictionary<String, HapticPreset> Presets { get; set; } = new Dictionary<String, HapticPreset>(DefaultPresets);
+
+		/// <summary>
+		/// Built-in default presets.
+		/// </summary>
+		public static readonly Dictionary<String, HapticPreset> DefaultPresets = new Dictionary<String, HapticPreset>
+		{
+			["default"] = new HapticPreset
+			{
+				Name = "Default",
+				Waveform = "knock",
+				Mode = MotorMode.DualMotor,
+				IntensityScale = 1.0,
+				MinHapticLevel = 10,
+				MaxHapticLevel = 100,
+				IntervalMinMs = 5,
+				IntervalMaxMs = 80,
+				Threshold = 10
+			},
+			["fishing"] = new HapticPreset
+			{
+				Name = "Fishing Game",
+				Waveform = "knock",
+				Mode = MotorMode.DualMotor,
+				IntensityScale = 1.2,
+				MinHapticLevel = 15,
+				MaxHapticLevel = 100,
+				IntervalMinMs = 3,
+				IntervalMaxMs = 100,
+				Threshold = 8
+			},
+			["racing"] = new HapticPreset
+			{
+				Name = "Racing / Driving",
+				Waveform = "wave",
+				Mode = MotorMode.LeftOnly,
+				IntensityScale = 0.8,
+				MinHapticLevel = 20,
+				MaxHapticLevel = 90,
+				IntervalMinMs = 15,
+				IntervalMaxMs = 40,
+				Threshold = 15
+			},
+			["shooter"] = new HapticPreset
+			{
+				Name = "Shooter / Action",
+				Waveform = "knock",
+				Mode = MotorMode.RightOnly,
+				IntensityScale = 1.5,
+				MinHapticLevel = 30,
+				MaxHapticLevel = 100,
+				IntervalMinMs = 2,
+				IntervalMaxMs = 30,
+				Threshold = 5
+			},
+			["subtle"] = new HapticPreset
+			{
+				Name = "Subtle / Light",
+				Waveform = "subtle_collision",
+				Mode = MotorMode.Combined,
+				IntensityScale = 0.6,
+				MinHapticLevel = 10,
+				MaxHapticLevel = 60,
+				IntervalMinMs = 20,
+				IntervalMaxMs = 100,
+				Threshold = 20
+			}
+		};
+
+		/// <summary>
+		/// Gets the currently active preset. Falls back to default if not found.
+		/// </summary>
+		[JsonIgnore]
+		public HapticPreset CurrentPreset
+		{
+			get
+			{
+				if (this.Presets != null && this.Presets.TryGetValue(this.ActivePreset ?? "default", out var preset))
+					return preset;
+				return new HapticPreset();
+			}
+		}
+
+		#endregion
+
+		#region Simple Mode (Direct HID++ Intensity) - Legacy
 
 		/// <summary>
 		/// Enable simple mode: single waveform + direct HID++ intensity + frequency.
 		/// </summary>
-		public Boolean EnableSimpleMode { get; set; } = true;
+		[Obsolete("Use EnablePresetMode and Presets instead")]
+		public Boolean EnableSimpleMode { get; set; } = false;
 
 		/// <summary>
 		/// Waveform to use in simple mode.
@@ -225,6 +467,7 @@ namespace MX4HapticService
 					{
 						config.MigrateFromLegacyFormat();
 						config.EnsureCurvesExist();
+						config.EnsurePresetsExist();
 						return config;
 					}
 				}
@@ -297,6 +540,21 @@ namespace MX4HapticService
 						new CurvePoint { Position = 1.0, Value = 0.0 }
 					};
 				}
+			}
+		}
+
+		private void EnsurePresetsExist()
+		{
+			if (this.Presets == null || this.Presets.Count == 0)
+			{
+				this.Presets = new Dictionary<String, HapticPreset>
+				{
+					["default"] = new HapticPreset()
+				};
+			}
+			if (String.IsNullOrEmpty(this.ActivePreset) || !this.Presets.ContainsKey(this.ActivePreset))
+			{
+				this.ActivePreset = this.Presets.Keys.First();
 			}
 		}
 
