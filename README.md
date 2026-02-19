@@ -15,7 +15,7 @@ Transform your Logitech MX Master 4 mouse into a game haptic feedback device. Ca
 
 1. **ViGEm Virtual Controller** - Creates a virtual Xbox 360 controller that games recognize
 2. **Vibration Capture** - Intercepts rumble/vibration commands from games
-3. **HID++ Protocol** - Sends haptic feedback directly to MX Master 4 via Bluetooth
+3. **HID++ Protocol** - Sends haptic feedback directly to MX Master 4 via Bluetooth or Logi Bolt receiver
 
 ## Requirements
 
@@ -25,10 +25,14 @@ Transform your Logitech MX Master 4 mouse into a game haptic feedback device. Ca
 - Logitech MX Master 4 mouse
 - **Xbox Game Bar** (install from Microsoft Store to avoid popups)
 
-> **IMPORTANT: Bluetooth connection required!**
->
-> The mouse MUST be connected via **Bluetooth**, not via Logi Bolt USB receiver.
-> HID++ haptic commands only work over direct Bluetooth connection.
+## Supported Connections
+
+| Connection | Status | Notes |
+|------------|--------|-------|
+| **Bluetooth** | ✅ Supported | Direct connection, device index 0xFF |
+| **Logi Bolt Receiver** | ✅ Supported | USB receiver, device index 0x01-0x06 |
+
+The service auto-detects the connection type and configures itself automatically.
 
 ## Installation
 
@@ -132,7 +136,8 @@ dotnet build tools/HapticConfigurator
 ## Troubleshooting
 
 **No haptic feedback**
-- Ensure MX Master 4 is connected via Bluetooth (not USB receiver)
+- Ensure MX Master 4 is connected (Bluetooth or Logi Bolt receiver)
+- Move the mouse to wake it from sleep mode
 - Check ViGEmBus driver is installed
 - Click "Connect Mouse" in configurator to test connection
 

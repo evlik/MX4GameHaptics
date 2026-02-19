@@ -39,47 +39,93 @@ namespace HapticConfigurator
 		private const ushort LogitechVendorId = 0x046D;
 		private const byte ShortReportId = 0x10;
 		private const byte LongReportId = 0x11;
-		private const ushort FeatureHaptic = 0x19B0;
+
+		// Known Haptic Feature IDs
+		private const ushort FeatureHapticOld = 0x19B0;   // Original haptic feature
+		private const ushort FeatureHapticNew = 0x0B4E;   // MX Master 4 haptic feature
+
+		// Function indices for haptic control
 		private const byte FuncWriteHapticLevel = 0x02;
 		private const byte FuncPlayWaveform = 0x04;
+
+		// Bolt Receiver PIDs
+		private static readonly ushort[] BoltReceiverPids = { 0xC548, 0xC547, 0xC545 };
 
 		private IntPtr _deviceHandle = IntPtr.Zero;
 		private byte _deviceIndex = 0xFF;
 		private byte _hapticFeatureIndex = 0;
+		private ushort _hapticFeatureId = 0;
 		private bool _useLongReports = false;
 		private bool _initialized = false;
+		private string _connectionMode = "Unknown";
 
 		public bool IsConnected => _initialized && _deviceHandle != IntPtr.Zero;
 		public byte DeviceIndex => _deviceIndex;
 		public byte HapticFeatureIndex => _hapticFeatureIndex;
+		public ushort HapticFeatureId => _hapticFeatureId;
 		public bool UseLongReports => _useLongReports;
+		public string ConnectionMode => _connectionMode;
 
 		public bool Connect()
 		{
 			try
 			{
-				var devices = HidApi.EnumerateDevices(LogitechVendorId);
-				foreach (var path in devices)
+				var devices = HidApi.EnumerateDevicesWithInfo(LogitechVendorId);
+
+				// Sort: prioritize Bolt receivers first, then direct connections
+				var sortedDevices = devices
+					.OrderBy(d => BoltReceiverPids.Contains(d.ProductId) ? 0 : 1)
+					.ThenBy(d => d.Path)
+					.ToList();
+
+				foreach (var device in sortedDevices)
 				{
-					var handle = HidApi.OpenDevice(path);
+					var handle = HidApi.OpenDevice(device.Path);
 					if (handle == IntPtr.Zero) continue;
 
-					foreach (var devIdx in new byte[] { 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 })
+					var isBoltReceiver = BoltReceiverPids.Contains(device.ProductId);
+
+					// Device indices to try:
+					// - 0xFF for direct Bluetooth connection
+					// - 0x01-0x06 for devices paired to receiver
+					var indicesToTry = isBoltReceiver
+						? new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 }
+						: new byte[] { 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
+
+					foreach (var devIdx in indicesToTry)
 					{
 						var pingResult = TryPing(handle, devIdx);
 						if (pingResult == null) continue;
 
-						var (featureIdx, useLong) = GetFeatureIndexWithFallback(handle, FeatureHaptic, devIdx);
+						// Try new MX Master 4 haptic feature first (0x0B4E)
+						var (featureIdx, useLong) = GetFeatureIndexWithFallback(handle, FeatureHapticNew, devIdx);
 						if (featureIdx > 0)
 						{
 							_deviceHandle = handle;
 							_deviceIndex = devIdx;
 							_hapticFeatureIndex = featureIdx;
+							_hapticFeatureId = FeatureHapticNew;
 							_useLongReports = useLong;
+							_connectionMode = isBoltReceiver ? $"Bolt Receiver (PID:{device.ProductId:X4})" : "Bluetooth";
 							_initialized = true;
 							return true;
 						}
 
+						// Try old haptic feature (0x19B0)
+						(featureIdx, useLong) = GetFeatureIndexWithFallback(handle, FeatureHapticOld, devIdx);
+						if (featureIdx > 0)
+						{
+							_deviceHandle = handle;
+							_deviceIndex = devIdx;
+							_hapticFeatureIndex = featureIdx;
+							_hapticFeatureId = FeatureHapticOld;
+							_useLongReports = useLong;
+							_connectionMode = isBoltReceiver ? $"Bolt Receiver (PID:{device.ProductId:X4})" : "Bluetooth";
+							_initialized = true;
+							return true;
+						}
+
+						// Enumerate all features and look for haptic-related ones
 						var features = EnumerateFeatures(handle, devIdx, useLong);
 						foreach (var (fid, fidx) in features)
 						{
@@ -88,7 +134,9 @@ namespace HapticConfigurator
 								_deviceHandle = handle;
 								_deviceIndex = devIdx;
 								_hapticFeatureIndex = fidx;
+								_hapticFeatureId = fid;
 								_useLongReports = useLong;
+								_connectionMode = isBoltReceiver ? $"Bolt Receiver (PID:{device.ProductId:X4})" : "Bluetooth";
 								_initialized = true;
 								return true;
 							}
@@ -253,6 +301,16 @@ namespace HapticConfigurator
 		}
 	}
 
+	/// <summary>
+	/// Device information for enumeration.
+	/// </summary>
+	public struct HidDeviceInfo
+	{
+		public string Path;
+		public ushort VendorId;
+		public ushort ProductId;
+	}
+
 	internal static class HidApi
 	{
 		[DllImport("hid.dll")] private static extern void HidD_GetHidGuid(out Guid hidGuid);
@@ -279,6 +337,54 @@ namespace HapticConfigurator
 		private const uint GENERIC_READ = 0x80000000, GENERIC_WRITE = 0x40000000;
 		private const uint FILE_SHARE_READ = 0x01, FILE_SHARE_WRITE = 0x02, OPEN_EXISTING = 3, FILE_FLAG_OVERLAPPED = 0x40000000;
 		private static bool _useOverlappedIO = false;
+
+		public static List<HidDeviceInfo> EnumerateDevicesWithInfo(ushort vendorId)
+		{
+			var result = new List<HidDeviceInfo>();
+			HidD_GetHidGuid(out Guid hidGuid);
+			var deviceInfoSet = SetupDiGetClassDevs(ref hidGuid, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+			if (deviceInfoSet == IntPtr.Zero) return result;
+
+			try
+			{
+				var interfaceData = new SP_DEVICE_INTERFACE_DATA { cbSize = (uint)Marshal.SizeOf<SP_DEVICE_INTERFACE_DATA>() };
+				uint index = 0;
+				while (SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref hidGuid, index++, ref interfaceData))
+				{
+					SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref interfaceData, IntPtr.Zero, 0, out uint requiredSize, IntPtr.Zero);
+					var detailData = Marshal.AllocHGlobal((int)requiredSize);
+					try
+					{
+						Marshal.WriteInt32(detailData, IntPtr.Size == 8 ? 8 : 6);
+						if (SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref interfaceData, detailData, requiredSize, out _, IntPtr.Zero))
+						{
+							var devicePath = Marshal.PtrToStringAuto(detailData + 4);
+							if (devicePath != null)
+							{
+								var handle = CreateFile(devicePath, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+								if (handle != IntPtr.Zero && handle != new IntPtr(-1))
+								{
+									var attrs = new HIDD_ATTRIBUTES { Size = (uint)Marshal.SizeOf<HIDD_ATTRIBUTES>() };
+									if (HidD_GetAttributes(handle, ref attrs) && attrs.VendorID == vendorId)
+									{
+										result.Add(new HidDeviceInfo
+										{
+											Path = devicePath,
+											VendorId = attrs.VendorID,
+											ProductId = attrs.ProductID
+										});
+									}
+									CloseHandle(handle);
+								}
+							}
+						}
+					}
+					finally { Marshal.FreeHGlobal(detailData); }
+				}
+			}
+			finally { SetupDiDestroyDeviceInfoList(deviceInfoSet); }
+			return result;
+		}
 
 		public static List<string> EnumerateDevices(ushort vendorId)
 		{

@@ -73,10 +73,10 @@ namespace MX4HapticService
 				this._hidppDevice = new HidPlusPlusDevice();
 				if (!this._hidppDevice.Connect())
 				{
-					this.Error?.Invoke("Failed to connect to MX Master 4. Make sure it's connected via Bluetooth.");
+					this.Error?.Invoke("Failed to connect to MX Master 4. Make sure it's connected via Bluetooth or Logi Bolt receiver.");
 					return false;
 				}
-				this.StatusChanged?.Invoke($"Mouse connected (idx={this._hidppDevice.DeviceIndex:X2})");
+				this.StatusChanged?.Invoke($"Mouse connected via {this._hidppDevice.ConnectionMode} (idx={this._hidppDevice.DeviceIndex:X2}, feature=0x{this._hidppDevice.HapticFeatureId:X4})");
 
 				// Create virtual controller
 				if (!this.StartVirtualController())
