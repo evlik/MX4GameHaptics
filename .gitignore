@@ -1,0 +1,39 @@
+# Build results
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# NuGet
+*.nupkg
+packages/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# User-specific files
+*.rsuser
+*.log
+
+# Build logs
+*.log
+msbuild*.binlog
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test results
+TestResults/
+Backup/
+UpgradeLog.htm
+*.lplug4

@@ -1,0 +1,31 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34408.163
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestHapticPlugin", "src\TestHapticPlugin.csproj", "{88F0E61D-F903-48F5-BC7C-5DE55CDD295F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{BD08438B-1C4A-4FFA-A856-D5285D570BB8}"
+	ProjectSection(SolutionItems) = preProject
+		.vscode\launch.json = .vscode\launch.json
+		.vscode\tasks.json = .vscode\tasks.json
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{88F0E61D-F903-48F5-BC7C-5DE55CDD295F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88F0E61D-F903-48F5-BC7C-5DE55CDD295F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88F0E61D-F903-48F5-BC7C-5DE55CDD295F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88F0E61D-F903-48F5-BC7C-5DE55CDD295F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {ACA0C189-81AC-44B0-AE9C-7AF09669E2BA}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,17 @@
+type: plugin4
+name: LogiHaptic
+displayName: Game Haptics
+version: 1.1
+description: Translates game controller vibrations to MX Master 4 haptic feedback via XInput proxy
+author: MX4GameHaptics
+copyright: Copyright 2024 MX4GameHaptics
+license: MIT
+licenseUrl: https://opensource.org/licenses/MIT
+minimumLoupedeckVersion: 6.2
+supportedDevices:
+- LoupedeckCtFamily
+pluginCapabilities:
+- HasHapticMapping
+- HasHapticsMapping
+pluginFileName: LogiHapticPlugin.dll
+pluginFolderWin: bin

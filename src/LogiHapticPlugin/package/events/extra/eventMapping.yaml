@@ -1,0 +1,45 @@
+haptics:
+  sharp_collision:
+    DEFAULT: sharp_collision
+
+  sharp_state_change:
+    DEFAULT: sharp_state_change
+
+  knock:
+    DEFAULT: knock
+
+  damp_collision:
+    DEFAULT: damp_collision
+
+  mad:
+    DEFAULT: mad
+
+  ringing:
+    DEFAULT: ringing
+
+  subtle_collision:
+    DEFAULT: subtle_collision
+
+  completed:
+    DEFAULT: completed
+
+  jingle:
+    DEFAULT: jingle
+
+  damp_state_change:
+    DEFAULT: damp_state_change
+
+  firework:
+    DEFAULT: firework
+
+  happy_alert:
+    DEFAULT: happy_alert
+
+  wave:
+    DEFAULT: wave
+
+  angry_alert:
+    DEFAULT: angry_alert
+
+  square:
+    DEFAULT: square

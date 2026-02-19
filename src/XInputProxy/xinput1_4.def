@@ -1,0 +1,12 @@
+; XInput 1.4 Proxy DLL Export Definitions
+; Maps our proxy functions to the expected XInput names with correct ordinals
+
+LIBRARY xinput1_4
+EXPORTS
+    XInputGetState = XInputGetState_Proxy @2
+    XInputSetState = XInputSetState_Proxy @3
+    XInputGetCapabilities = XInputGetCapabilities_Proxy @4
+    XInputEnable = XInputEnable_Proxy @5
+    XInputGetBatteryInformation = XInputGetBatteryInformation_Proxy @7
+    XInputGetKeystroke = XInputGetKeystroke_Proxy @8
+    XInputGetAudioDeviceIds = XInputGetAudioDeviceIds_Proxy @10

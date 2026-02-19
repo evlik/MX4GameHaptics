@@ -1,0 +1,45 @@
+events:
+  - name: sharp_collision
+    displayName: Sharp Collision
+
+  - name: sharp_state_change
+    displayName: Sharp State Change
+
+  - name: knock
+    displayName: Knock
+
+  - name: damp_collision
+    displayName: Damp Collision
+
+  - name: mad
+    displayName: Mad
+
+  - name: ringing
+    displayName: Ringing
+
+  - name: subtle_collision
+    displayName: Subtle Collision
+
+  - name: completed
+    displayName: Completed
+
+  - name: jingle
+    displayName: Jingle
+
+  - name: damp_state_change
+    displayName: Damp State Change
+
+  - name: firework
+    displayName: Firework
+
+  - name: happy_alert
+    displayName: Happy Alert
+
+  - name: wave
+    displayName: Wave
+
+  - name: angry_alert
+    displayName: Angry Alert
+
+  - name: square
+    displayName: Square
