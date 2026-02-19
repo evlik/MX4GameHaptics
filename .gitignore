@@ -37,3 +37,7 @@ TestResults/
 Backup/
 UpgradeLog.htm
 *.lplug4
+
+# Installer build artifacts
+installer/publish/
+installer/output/

@@ -1,12 +1,17 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Windows.Forms;
+using AutoUpdaterDotNET;
 
 namespace MX4HapticService
 {
 	static class Program
 	{
+		// Update URL - points to XML file on GitHub or your server
+		public const String UpdateUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/MX4GameHaptics/master/updates/update.xml";
+
 		[STAThread]
 		static void Main(string[] args)
 		{
@@ -42,8 +47,68 @@ namespace MX4HapticService
 
 			this.BuildTrayIcon();
 
+			// Configure auto-updater
+			this.ConfigureAutoUpdater();
+
 			// Auto-start service
 			this.StartService();
+
+			// Check for updates silently on startup
+			this.CheckForUpdates(silent: true);
+		}
+
+		private void ConfigureAutoUpdater()
+		{
+			AutoUpdater.Icon = CreateIcon().ToBitmap();
+			AutoUpdater.ShowSkipButton = true;
+			AutoUpdater.ShowRemindLaterButton = true;
+			AutoUpdater.RunUpdateAsAdmin = true;
+			AutoUpdater.ReportErrors = false; // Don't show errors for silent checks
+			AutoUpdater.Synchronous = false;
+
+			// Custom update message
+			AutoUpdater.AppTitle = "MX4 Game Haptics";
+
+			// Handle update events
+			AutoUpdater.CheckForUpdateEvent += this.OnCheckForUpdateEvent;
+		}
+
+		private void OnCheckForUpdateEvent(UpdateInfoEventArgs args)
+		{
+			if (args.Error == null)
+			{
+				if (args.IsUpdateAvailable)
+				{
+					var message = $"New version {args.CurrentVersion} is available!\n\n" +
+						$"Current version: {args.InstalledVersion}\n\n" +
+						"Would you like to download it now?";
+
+					if (MessageBox.Show(message, "Update Available",
+						MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+					{
+						try
+						{
+							if (AutoUpdater.DownloadUpdate(args))
+							{
+								// Stop service and exit to allow update
+								this._service.Stop();
+								Application.Exit();
+							}
+						}
+						catch (Exception ex)
+						{
+							MessageBox.Show($"Update failed: {ex.Message}", "Error",
+								MessageBoxButtons.OK, MessageBoxIcon.Error);
+						}
+					}
+				}
+			}
+		}
+
+		private void CheckForUpdates(Boolean silent = false)
+		{
+			AutoUpdater.ReportErrors = !silent;
+			AutoUpdater.Start(Program.UpdateUrl);
 		}
 
 		private void BuildTrayIcon()
@@ -65,6 +130,7 @@ namespace MX4HapticService
 			contextMenu.Items.Add(new ToolStripMenuItem("Reload Config", null, this.OnReloadConfigClick));
 			contextMenu.Items.Add(new ToolStripMenuItem("Open Configurator", null, this.OnOpenConfiguratorClick));
 			contextMenu.Items.Add(new ToolStripSeparator());
+			contextMenu.Items.Add(new ToolStripMenuItem("Check for Updates", null, this.OnCheckForUpdatesClick));
 			contextMenu.Items.Add(new ToolStripMenuItem("Exit", null, this.OnExitClick));
 
 			this._trayIcon = new NotifyIcon
@@ -212,6 +278,11 @@ namespace MX4HapticService
 			{
 				MessageBox.Show($"Failed to open configurator: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
 			}
+		}
+
+		private void OnCheckForUpdatesClick(Object sender, EventArgs e)
+		{
+			this.CheckForUpdates(silent: false);
 		}
 
 		private void OnExitClick(Object sender, EventArgs e)
