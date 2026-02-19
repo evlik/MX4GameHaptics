@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <item>
     <version>1.0.0</version>
-    <url>https://github.com/YOUR_USERNAME/MX4GameHaptics/releases/download/v1.0.0/MX4GameHaptics-Setup-1.0.0.exe</url>
-    <changelog>https://github.com/YOUR_USERNAME/MX4GameHaptics/releases/tag/v1.0.0</changelog>
+    <url>https://github.com/evlik/MX4GameHaptics/releases/download/v1.0.0/MX4GameHaptics-Setup-1.0.0.exe</url>
+    <changelog>https://github.com/evlik/MX4GameHaptics/releases/tag/v1.0.0</changelog>
     <mandatory>false</mandatory>
 </item>
 
@@ -20,8 +20,8 @@ HOW TO UPDATE THIS FILE:
 Example for version 1.1.0:
 <item>
     <version>1.1.0</version>
-    <url>https://github.com/YOUR_USERNAME/MX4GameHaptics/releases/download/v1.1.0/MX4GameHaptics-Setup-1.1.0.exe</url>
-    <changelog>https://github.com/YOUR_USERNAME/MX4GameHaptics/releases/tag/v1.1.0</changelog>
+    <url>https://github.com/evlik/MX4GameHaptics/releases/download/v1.1.0/MX4GameHaptics-Setup-1.1.0.exe</url>
+    <changelog>https://github.com/evlik/MX4GameHaptics/releases/tag/v1.1.0</changelog>
     <mandatory>false</mandatory>
 </item>
 

@@ -10,7 +10,7 @@ namespace MX4HapticService
 	static class Program
 	{
 		// Update URL - points to XML file on GitHub or your server
-		public const String UpdateUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/MX4GameHaptics/master/updates/update.xml";
+		public const String UpdateUrl = "https://raw.githubusercontent.com/evlik/MX4GameHaptics/master/updates/update.xml";
 
 		[STAThread]
 		static void Main(string[] args)

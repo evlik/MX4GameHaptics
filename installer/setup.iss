@@ -4,7 +4,7 @@
 #define MyAppName "MX4 Game Haptics"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "MX4GameHaptics"
-#define MyAppURL "https://github.com/user/MX4GameHaptics"
+#define MyAppURL "https://github.com/evlik/MX4GameHaptics"
 #define MyAppExeName "MX4HapticService.exe"
 #define MyAppConfiguratorName "HapticConfigurator.exe"
 

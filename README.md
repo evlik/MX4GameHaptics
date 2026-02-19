@@ -40,7 +40,7 @@ The service auto-detects the connection type and configures itself automatically
 
 ```powershell
 # Clone and install
-git clone https://github.com/user/MX4GameHaptics.git
+git clone https://github.com/evlik/MX4GameHaptics.git
 cd MX4GameHaptics/tools
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
