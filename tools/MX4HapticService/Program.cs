@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace MX4HapticService
@@ -79,7 +80,19 @@ namespace MX4HapticService
 
 		private static Icon CreateIcon()
 		{
-			// Use system icon to avoid GDI+ issues
+			// Load custom icon from app directory
+			try
+			{
+				var iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+				if (File.Exists(iconPath))
+				{
+					return new Icon(iconPath, 16, 16);
+				}
+			}
+			catch
+			{
+				// Fall back to system icon on error
+			}
 			return SystemIcons.Application;
 		}
 
@@ -161,23 +174,37 @@ namespace MX4HapticService
 		{
 			try
 			{
-				// Get the project root directory
-				var exeDir = System.IO.Path.GetDirectoryName(Application.ExecutablePath);
-				var projectRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(exeDir, "..", "..", "..", ".."));
-				var configuratorProject = System.IO.Path.Combine(projectRoot, "HapticConfigurator", "HapticConfigurator.csproj");
+				var exeDir = Path.GetDirectoryName(Application.ExecutablePath);
 
-				if (System.IO.File.Exists(configuratorProject))
+				// First try: Look for HapticConfigurator.exe in same directory (installed mode)
+				var configuratorExe = Path.Combine(exeDir, "HapticConfigurator.exe");
+				if (File.Exists(configuratorExe))
+				{
+					System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+					{
+						FileName = configuratorExe,
+						UseShellExecute = true
+					});
+					return;
+				}
+
+				// Second try: Development mode - use dotnet run
+				var projectRoot = Path.GetFullPath(Path.Combine(exeDir, "..", "..", "..", ".."));
+				var configuratorProject = Path.Combine(projectRoot, "HapticConfigurator", "HapticConfigurator.csproj");
+
+				if (File.Exists(configuratorProject))
 				{
 					System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
 					{
 						FileName = "dotnet",
 						Arguments = $"run --project \"{configuratorProject}\"",
-						UseShellExecute = true
+						UseShellExecute = true,
+						CreateNoWindow = true
 					});
 				}
 				else
 				{
-					MessageBox.Show($"Configurator not found at:\n{configuratorProject}\n\nRun manually:\ndotnet run --project HapticConfigurator",
+					MessageBox.Show("Configurator not found.\n\nRun manually:\ndotnet run --project HapticConfigurator",
 						"Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 				}
 			}

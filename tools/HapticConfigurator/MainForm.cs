@@ -10,6 +10,14 @@ namespace HapticConfigurator
 {
 	public partial class MainForm : Form
 	{
+		// Dark theme colors
+		private static readonly Color BgDark = Color.FromArgb(32, 32, 32);
+		private static readonly Color BgPanel = Color.FromArgb(45, 45, 45);
+		private static readonly Color BgControl = Color.FromArgb(60, 60, 60);
+		private static readonly Color FgText = Color.FromArgb(240, 240, 240);
+		private static readonly Color Accent = Color.FromArgb(0, 212, 170);
+		private static readonly Color AccentDark = Color.FromArgb(0, 160, 130);
+
 		private HapticConfig _config;
 
 		// Simple Mode Controls
@@ -56,6 +64,7 @@ namespace HapticConfigurator
 		public MainForm()
 		{
 			this.InitializeComponent();
+			this.ApplyDarkTheme();
 			this._config = HapticConfig.Load();
 			this.LoadConfigToUI();
 			this.FormClosing += (s, e) =>
@@ -64,6 +73,94 @@ namespace HapticConfigurator
 				this._testRunning = false;
 				this._device?.Dispose();
 			};
+		}
+
+		/// <summary>
+		/// Applies dark theme styling to all controls.
+		/// </summary>
+		private void ApplyDarkTheme()
+		{
+			this.BackColor = BgDark;
+			this.ForeColor = FgText;
+
+			foreach (Control ctrl in this.Controls)
+			{
+				this.ApplyThemeToControl(ctrl);
+			}
+		}
+
+		/// <summary>
+		/// Recursively applies theme to a control and its children.
+		/// </summary>
+		private void ApplyThemeToControl(Control ctrl)
+		{
+			ctrl.ForeColor = FgText;
+
+			if (ctrl is Panel panel)
+			{
+				panel.BackColor = BgPanel;
+			}
+			else if (ctrl is Button btn)
+			{
+				btn.FlatStyle = FlatStyle.Flat;
+				btn.FlatAppearance.BorderColor = Accent;
+				btn.FlatAppearance.BorderSize = 1;
+				btn.BackColor = BgControl;
+				btn.ForeColor = FgText;
+			}
+			else if (ctrl is TextBox txt)
+			{
+				txt.BackColor = BgControl;
+				txt.ForeColor = FgText;
+				txt.BorderStyle = BorderStyle.FixedSingle;
+			}
+			else if (ctrl is ComboBox cbo)
+			{
+				cbo.BackColor = BgControl;
+				cbo.ForeColor = FgText;
+				cbo.FlatStyle = FlatStyle.Flat;
+			}
+			else if (ctrl is CheckBox chk)
+			{
+				chk.BackColor = Color.Transparent;
+				chk.ForeColor = FgText;
+			}
+			else if (ctrl is RadioButton rb)
+			{
+				rb.BackColor = Color.Transparent;
+				rb.ForeColor = FgText;
+			}
+			else if (ctrl is Label lbl)
+			{
+				lbl.BackColor = Color.Transparent;
+			}
+			else if (ctrl is DataGridView dgv)
+			{
+				dgv.BackgroundColor = BgPanel;
+				dgv.GridColor = BgControl;
+				dgv.DefaultCellStyle.BackColor = BgControl;
+				dgv.DefaultCellStyle.ForeColor = FgText;
+				dgv.DefaultCellStyle.SelectionBackColor = Accent;
+				dgv.DefaultCellStyle.SelectionForeColor = BgDark;
+				dgv.ColumnHeadersDefaultCellStyle.BackColor = BgPanel;
+				dgv.ColumnHeadersDefaultCellStyle.ForeColor = FgText;
+				dgv.EnableHeadersVisualStyles = false;
+			}
+			else if (ctrl is TrackBar)
+			{
+				// TrackBar doesn't support custom colors in WinForms
+				ctrl.BackColor = BgPanel;
+			}
+			else
+			{
+				ctrl.BackColor = BgDark;
+			}
+
+			// Recursively apply to children
+			foreach (Control child in ctrl.Controls)
+			{
+				this.ApplyThemeToControl(child);
+			}
 		}
 
 		private void InitializeComponent()
@@ -129,8 +226,7 @@ namespace HapticConfigurator
 			{
 				Text = "Connect Mouse",
 				Location = new Point(20, y),
-				Size = new Size(120, 30),
-				BackColor = Color.LightBlue
+				Size = new Size(120, 30)
 			};
 			this._btnConnect.Click += this.BtnConnect_Click;
 			this.Controls.Add(this._btnConnect);
@@ -139,8 +235,7 @@ namespace HapticConfigurator
 			{
 				Text = "Test Sweep",
 				Location = new Point(150, y),
-				Size = new Size(100, 30),
-				BackColor = Color.LightGreen
+				Size = new Size(100, 30)
 			};
 			btnTestSweep.Click += this.BtnTestSweep_Click;
 			this.Controls.Add(btnTestSweep);
@@ -149,8 +244,7 @@ namespace HapticConfigurator
 			{
 				Text = "STOP",
 				Location = new Point(260, y),
-				Size = new Size(60, 30),
-				BackColor = Color.LightCoral
+				Size = new Size(60, 30)
 			};
 			btnTestStop.Click += (s, e) => { this._testAllRunning = false; this._testRunning = false; };
 			this.Controls.Add(btnTestStop);
@@ -206,13 +300,13 @@ namespace HapticConfigurator
 			if (this._device.Connect())
 			{
 				this._btnConnect.Text = "Reconnect";
-				this._btnConnect.BackColor = Color.LightGreen;
-				this.SetStatus($"Connected! (idx={this._device.DeviceIndex:X2}, feat={this._device.HapticFeatureIndex}, long={this._device.UseLongReports})", Color.Green);
+				this._btnConnect.FlatAppearance.BorderColor = Accent;
+				this.SetStatus($"Connected! (idx={this._device.DeviceIndex:X2}, feat={this._device.HapticFeatureIndex}, long={this._device.UseLongReports})", Accent);
 			}
 			else
 			{
-				this._btnConnect.BackColor = Color.LightCoral;
-				this.SetStatus("Connection failed! Make sure mouse is connected via Bluetooth.", Color.Red);
+				this._btnConnect.FlatAppearance.BorderColor = Color.Salmon;
+				this.SetStatus("Connection failed! Make sure mouse is connected via Bluetooth.", Color.Salmon);
 			}
 		}
 

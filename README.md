@@ -2,6 +2,8 @@
 
 Transform your Logitech MX Master 4 mouse into a game haptic feedback device. Captures Xbox controller vibration from games and converts it to haptic feedback on your mouse via direct HID++ protocol.
 
+**Works alongside Logi Options+** - no conflicts, both apps can run simultaneously.
+
 ## How It Works
 
 ```
@@ -18,20 +20,49 @@ Transform your Logitech MX Master 4 mouse into a game haptic feedback device. Ca
 ## Requirements
 
 - Windows 10/11
-- .NET 8.0 SDK
+- .NET 8.0 Runtime (or SDK for development)
 - [ViGEmBus Driver](https://github.com/nefarius/ViGEmBus/releases) - Virtual gamepad driver
-- Logitech MX Master 4 mouse (connected via Bluetooth)
+- Logitech MX Master 4 mouse
+- **Xbox Game Bar** (install from Microsoft Store to avoid popups)
 
-## Quick Start
+> **IMPORTANT: Bluetooth connection required!**
+>
+> The mouse MUST be connected via **Bluetooth**, not via Logi Bolt USB receiver.
+> HID++ haptic commands only work over direct Bluetooth connection.
+
+## Installation
+
+### Easy Install (Recommended)
+
+```powershell
+# Clone and install
+git clone https://github.com/user/MX4GameHaptics.git
+cd MX4GameHaptics/tools
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+This will:
+- Build both applications
+- Install to `%LOCALAPPDATA%\MX4GameHaptics`
+- Create Start Menu shortcuts
+
+After installation, search **"MX4 Haptic"** in Start Menu.
+
+### Development Mode
 
 ```bash
-# Install ViGEmBus driver first!
-
-# Run the service
+# Run the service directly
 dotnet run --project tools/MX4HapticService
 
-# (Optional) Configure settings
+# Configure settings
 dotnet run --project tools/HapticConfigurator
+```
+
+### Uninstall
+
+```powershell
+cd tools
+powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall
 ```
 
 ## Projects
