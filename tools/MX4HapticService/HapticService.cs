@@ -27,6 +27,28 @@ namespace MX4HapticService
 		private Timer _activityTimer;
 		private Boolean _activityToggle = false;
 
+		// Pass-through mode (forwards real controller input to virtual)
+		private Thread _passThroughThread;
+		private volatile Boolean _realControllerConnected = false;
+		private UInt32 _realControllerIndex = 0;
+
+		// Haptics enable/disable
+		private volatile Boolean _hapticsEnabled = true;
+		public Boolean HapticsEnabled
+		{
+			get => this._hapticsEnabled;
+			set
+			{
+				this._hapticsEnabled = value;
+				if (!value && this._hidppDevice?.IsConnected == true)
+				{
+					this._hidppDevice.SetHapticLevel(0);
+					this._lastHapticLevel = 0;
+				}
+				this.StatusChanged?.Invoke(value ? "Haptics enabled" : "Haptics disabled");
+			}
+		}
+
 		// Motor state
 		private Byte _currentLeftMotor = 0;
 		private Byte _currentRightMotor = 0;
@@ -51,6 +73,7 @@ namespace MX4HapticService
 		public Boolean IsRunning => this._running;
 		public Boolean IsMouseConnected => this._hidppDevice?.IsConnected == true;
 		public Boolean IsControllerConnected => this._virtualController != null;
+		public Boolean IsRealControllerConnected => this._realControllerConnected;
 
 		// For latency testing
 		private Stopwatch _latencyStopwatch;
@@ -89,6 +112,9 @@ namespace MX4HapticService
 				// Start vibration processing thread
 				this.StartVibrationThread();
 
+				// Start pass-through thread (auto-detects real controller)
+				this.StartPassThroughThread();
+
 				// Watch config file for changes
 				this.StartConfigWatcher();
 
@@ -110,6 +136,7 @@ namespace MX4HapticService
 		public void Stop()
 		{
 			this.StopConfigWatcher();
+			this.StopPassThroughThread();
 			this.StopVibrationThread();
 			this.StopActivitySimulator();
 			this.StopVirtualController();
@@ -316,6 +343,183 @@ namespace MX4HapticService
 
 		#endregion
 
+		#region Pass-Through Mode
+
+		/// <summary>
+		/// Starts the pass-through thread that forwards real controller input to virtual.
+		/// </summary>
+		private void StartPassThroughThread()
+		{
+			this._passThroughThread = new Thread(this.PassThroughLoop)
+			{
+				IsBackground = true,
+				Priority = ThreadPriority.AboveNormal,
+				Name = "PassThroughThread"
+			};
+			this._passThroughThread.Start();
+		}
+
+		/// <summary>
+		/// Stops the pass-through thread.
+		/// </summary>
+		private void StopPassThroughThread()
+		{
+			this._passThroughThread?.Join(500);
+			this._passThroughThread = null;
+		}
+
+		/// <summary>
+		/// Detects if a real XInput controller is connected.
+		/// Returns the index of the first connected controller, or -1 if none.
+		/// </summary>
+		private Int32 DetectRealController()
+		{
+			// Check all 4 possible XInput slots
+			// Skip slot 0 if our virtual controller is there (it usually is)
+			for (UInt32 i = 1; i < 4; i++)
+			{
+				var state = new NativeMethods.XINPUT_STATE();
+				if (NativeMethods.XInputGetState(i, ref state) == NativeMethods.ERROR_SUCCESS)
+				{
+					return (Int32)i;
+				}
+			}
+			return -1;
+		}
+
+		/// <summary>
+		/// Pass-through loop: reads real controller and forwards to virtual.
+		/// </summary>
+		private void PassThroughLoop()
+		{
+			var lastPacketNumber = UInt32.MaxValue;
+			var checkInterval = 0;
+
+			while (this._running)
+			{
+				try
+				{
+					// Periodically check for real controller connection
+					if (checkInterval++ % 100 == 0)
+					{
+						var realIndex = this.DetectRealController();
+						var wasConnected = this._realControllerConnected;
+
+						if (realIndex >= 0)
+						{
+							this._realControllerIndex = (UInt32)realIndex;
+							this._realControllerConnected = true;
+
+							if (!wasConnected)
+							{
+								this.StopActivitySimulator();
+								this.StatusChanged?.Invoke($"Real controller detected at index {realIndex} - pass-through active");
+							}
+						}
+						else
+						{
+							this._realControllerConnected = false;
+
+							if (wasConnected)
+							{
+								this.StartActivitySimulator();
+								this.StatusChanged?.Invoke("Real controller disconnected - activity simulator active");
+							}
+						}
+					}
+
+					// If real controller connected, forward its input
+					if (this._realControllerConnected && this._virtualController != null)
+					{
+						var state = new NativeMethods.XINPUT_STATE();
+						if (NativeMethods.XInputGetState(this._realControllerIndex, ref state) == NativeMethods.ERROR_SUCCESS)
+						{
+							// Only update if state changed
+							if (state.dwPacketNumber != lastPacketNumber)
+							{
+								lastPacketNumber = state.dwPacketNumber;
+								this.ForwardInputToVirtual(state.Gamepad);
+							}
+						}
+					}
+
+					Thread.Sleep(5); // ~200Hz polling
+				}
+				catch (ThreadInterruptedException)
+				{
+					break;
+				}
+				catch
+				{
+					// Continue on errors
+				}
+			}
+		}
+
+		/// <summary>
+		/// Forwards gamepad input from real controller to virtual controller.
+		/// </summary>
+		private void ForwardInputToVirtual(NativeMethods.XINPUT_GAMEPAD gamepad)
+		{
+			if (this._virtualController == null) return;
+
+			try
+			{
+				// Forward axes
+				this._virtualController.SetAxisValue(Xbox360Axis.LeftThumbX, gamepad.sThumbLX);
+				this._virtualController.SetAxisValue(Xbox360Axis.LeftThumbY, gamepad.sThumbLY);
+				this._virtualController.SetAxisValue(Xbox360Axis.RightThumbX, gamepad.sThumbRX);
+				this._virtualController.SetAxisValue(Xbox360Axis.RightThumbY, gamepad.sThumbRY);
+
+				// Forward triggers (convert byte 0-255 to slider value)
+				this._virtualController.SetSliderValue(Xbox360Slider.LeftTrigger, gamepad.bLeftTrigger);
+				this._virtualController.SetSliderValue(Xbox360Slider.RightTrigger, gamepad.bRightTrigger);
+
+				// Forward buttons
+				this.ForwardButtons(gamepad.wButtons);
+			}
+			catch { }
+		}
+
+		/// <summary>
+		/// Forwards button states from real to virtual controller.
+		/// </summary>
+		private void ForwardButtons(UInt16 buttons)
+		{
+			// XInput button masks
+			const UInt16 DPAD_UP = 0x0001;
+			const UInt16 DPAD_DOWN = 0x0002;
+			const UInt16 DPAD_LEFT = 0x0004;
+			const UInt16 DPAD_RIGHT = 0x0008;
+			const UInt16 START = 0x0010;
+			const UInt16 BACK = 0x0020;
+			const UInt16 LEFT_THUMB = 0x0040;
+			const UInt16 RIGHT_THUMB = 0x0080;
+			const UInt16 LEFT_SHOULDER = 0x0100;
+			const UInt16 RIGHT_SHOULDER = 0x0200;
+			const UInt16 A = 0x1000;
+			const UInt16 B = 0x2000;
+			const UInt16 X = 0x4000;
+			const UInt16 Y = 0x8000;
+
+			this._virtualController.SetButtonState(Xbox360Button.Up, (buttons & DPAD_UP) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.Down, (buttons & DPAD_DOWN) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.Left, (buttons & DPAD_LEFT) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.Right, (buttons & DPAD_RIGHT) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.Start, (buttons & START) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.Back, (buttons & BACK) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.LeftThumb, (buttons & LEFT_THUMB) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.RightThumb, (buttons & RIGHT_THUMB) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.LeftShoulder, (buttons & LEFT_SHOULDER) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.RightShoulder, (buttons & RIGHT_SHOULDER) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.A, (buttons & A) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.B, (buttons & B) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.X, (buttons & X) != 0);
+			this._virtualController.SetButtonState(Xbox360Button.Y, (buttons & Y) != 0);
+		}
+
+		#endregion
+
 		#region Vibration Processing Thread
 
 		private void StartVibrationThread()
@@ -354,6 +558,13 @@ namespace MX4HapticService
 
 					if (left > 0 || right > 0)
 					{
+						// Skip haptic output if disabled
+						if (!this._hapticsEnabled)
+						{
+							Thread.Sleep(10);
+							continue;
+						}
+
 						Byte hapticLevel;
 						String waveformName;
 						Int32 intervalMs;
@@ -465,10 +676,13 @@ namespace MX4HapticService
 	}
 
 	/// <summary>
-	/// Native XInput methods for latency testing.
+	/// Native XInput methods for controller input and vibration.
 	/// </summary>
 	internal static class NativeMethods
 	{
+		public const UInt32 ERROR_SUCCESS = 0;
+		public const UInt32 ERROR_DEVICE_NOT_CONNECTED = 1167;
+
 		[StructLayout(LayoutKind.Sequential)]
 		public struct XINPUT_VIBRATION
 		{
@@ -476,8 +690,30 @@ namespace MX4HapticService
 			public UInt16 wRightMotorSpeed;
 		}
 
+		[StructLayout(LayoutKind.Sequential)]
+		public struct XINPUT_GAMEPAD
+		{
+			public UInt16 wButtons;
+			public Byte bLeftTrigger;
+			public Byte bRightTrigger;
+			public Int16 sThumbLX;
+			public Int16 sThumbLY;
+			public Int16 sThumbRX;
+			public Int16 sThumbRY;
+		}
+
+		[StructLayout(LayoutKind.Sequential)]
+		public struct XINPUT_STATE
+		{
+			public UInt32 dwPacketNumber;
+			public XINPUT_GAMEPAD Gamepad;
+		}
+
 		[DllImport("xinput1_4.dll", EntryPoint = "XInputSetState")]
 		public static extern UInt32 XInputSetState(UInt32 dwUserIndex, ref XINPUT_VIBRATION pVibration);
+
+		[DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
+		public static extern UInt32 XInputGetState(UInt32 dwUserIndex, ref XINPUT_STATE pState);
 
 		public static UInt32 XInputSetState(UInt32 dwUserIndex, XINPUT_VIBRATION vibration)
 		{

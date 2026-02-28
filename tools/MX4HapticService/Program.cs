@@ -30,6 +30,7 @@ namespace MX4HapticService
 		private HapticService _service;
 		private ToolStripMenuItem _statusItem;
 		private ToolStripMenuItem _startStopItem;
+		private ToolStripMenuItem _hapticsEnabledItem;
 		private VibrationMonitorForm _monitorForm;
 
 		public TrayApplicationContext()
@@ -73,40 +74,55 @@ namespace MX4HapticService
 			AutoUpdater.CheckForUpdateEvent += this.OnCheckForUpdateEvent;
 		}
 
+		private Boolean _manualUpdateCheck = false;
+
 		private void OnCheckForUpdateEvent(UpdateInfoEventArgs args)
 		{
-			if (args.Error == null)
+			if (args.Error != null)
 			{
-				if (args.IsUpdateAvailable)
+				if (this._manualUpdateCheck)
 				{
-					var message = $"New version {args.CurrentVersion} is available!\n\n" +
-						$"Current version: {args.InstalledVersion}\n\n" +
-						"Would you like to download it now?";
+					MessageBox.Show($"Failed to check for updates:\n{args.Error.Message}",
+						"Update Check Failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+				}
+			}
+			else if (args.IsUpdateAvailable)
+			{
+				var message = $"New version {args.CurrentVersion} is available!\n\n" +
+					$"Current version: {args.InstalledVersion}\n\n" +
+					"Would you like to download it now?";
 
-					if (MessageBox.Show(message, "Update Available",
-						MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+				if (MessageBox.Show(message, "Update Available",
+					MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+				{
+					try
 					{
-						try
+						if (AutoUpdater.DownloadUpdate(args))
 						{
-							if (AutoUpdater.DownloadUpdate(args))
-							{
-								// Stop service and exit to allow update
-								this._service.Stop();
-								Application.Exit();
-							}
+							// Stop service and exit to allow update
+							this._service.Stop();
+							Application.Exit();
 						}
-						catch (Exception ex)
-						{
-							MessageBox.Show($"Update failed: {ex.Message}", "Error",
-								MessageBoxButtons.OK, MessageBoxIcon.Error);
-						}
+					}
+					catch (Exception ex)
+					{
+						MessageBox.Show($"Update failed: {ex.Message}", "Error",
+							MessageBoxButtons.OK, MessageBoxIcon.Error);
 					}
 				}
 			}
+			else if (this._manualUpdateCheck)
+			{
+				MessageBox.Show($"You have the latest version ({args.InstalledVersion}).",
+					"No Updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+			}
+
+			this._manualUpdateCheck = false;
 		}
 
 		private void CheckForUpdates(Boolean silent = false)
 		{
+			this._manualUpdateCheck = !silent;
 			AutoUpdater.ReportErrors = !silent;
 			AutoUpdater.Start(Program.UpdateUrl);
 		}
@@ -120,10 +136,17 @@ namespace MX4HapticService
 
 			this._startStopItem = new ToolStripMenuItem("Stop", null, this.OnStartStopClick);
 
+			this._hapticsEnabledItem = new ToolStripMenuItem("Haptics to Mouse", null, this.OnHapticsToggleClick)
+			{
+				Checked = true,
+				CheckOnClick = true
+			};
+
 			var contextMenu = new ContextMenuStrip();
 			contextMenu.Items.Add(this._statusItem);
 			contextMenu.Items.Add(new ToolStripSeparator());
 			contextMenu.Items.Add(this._startStopItem);
+			contextMenu.Items.Add(this._hapticsEnabledItem);
 			contextMenu.Items.Add(new ToolStripMenuItem("Vibration Monitor", null, this.OnShowMonitorClick));
 			contextMenu.Items.Add(new ToolStripMenuItem("Test ViGEm Latency", null, this.OnTestLatencyClick));
 			contextMenu.Items.Add(new ToolStripSeparator());
@@ -228,6 +251,11 @@ namespace MX4HapticService
 		private void OnTestLatencyClick(Object sender, EventArgs e)
 		{
 			this._service.TestViGEmLatency();
+		}
+
+		private void OnHapticsToggleClick(Object sender, EventArgs e)
+		{
+			this._service.HapticsEnabled = this._hapticsEnabledItem.Checked;
 		}
 
 		private void OnReloadConfigClick(Object sender, EventArgs e)
