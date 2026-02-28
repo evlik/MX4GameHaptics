@@ -8,7 +8,7 @@
     <AssemblyName>HapticConfigurator</AssemblyName>
     <RootNamespace>HapticConfigurator</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <AssemblyTitle>MX4 Haptic Configurator</AssemblyTitle>
     <Product>MX4 Game Haptics</Product>
     <Company>MX4GameHaptics</Company>

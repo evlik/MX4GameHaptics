@@ -2,7 +2,7 @@
 ; Inno Setup Script
 
 #define MyAppName "MX4 Game Haptics"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "MX4GameHaptics"
 #define MyAppURL "https://github.com/evlik/MX4GameHaptics"
 #define MyAppExeName "MX4HapticService.exe"
